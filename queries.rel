@@ -52,7 +52,7 @@ def output = product, product.instacart:name
 
 def output = product.instacart:name, aisle.instacart:name 
              from product, aisle 
-			 where instacart:inAisle(product, aisle)
+             where instacart:inAisle(product, aisle)
                and product.instacart:name = "Bag of Organic Bananas"
 			   
 			   
@@ -63,7 +63,7 @@ def output = product.instacart:name, aisle.instacart:name
 
 def output = product2.instacart:name
              from product, aisle, product2 
-			 where product.instacart:name = "Bag of Organic Bananas"
+             where product.instacart:name = "Bag of Organic Bananas"
                and instacart:inAisle[product] = instacart:inAisle[product2]             
 			   and product != product2
 			   
@@ -75,7 +75,7 @@ def output = product2.instacart:name
 
 def output = count[product2
              from product, aisle, product2 
-			 where product.instacart:name = "Bag of Organic Bananas"
+             where product.instacart:name = "Bag of Organic Bananas"
                and instacart:inAisle[product] = instacart:inAisle[product2]             
                and product != product2]
 			   
@@ -84,7 +84,7 @@ def output = count[product2
 // How many orders included a Bag of Organic Bananas
 def output = count[order 
              from product, order 
-		     where instacart:has(order, product)               
+             where instacart:has(order, product)               
                and product.instacart:name = "Bag of Organic Bananas"] 
 
 
@@ -92,14 +92,18 @@ def output = count[order
 
 // Which users ordered a "Bag of Organic Bananas" and how many orders in total did they make?			   
 def output = u in user : count[o : instacart:orderedBy(o, u)]    
-            from product, order, user
-		     where instacart:has(order, product)  
+             from product, order, user
+             where instacart:has(order, product)  
                and instacart:orderedBy(order, user)
                and product.instacart:name = "Bag of Organic Bananas"
 			   
 			   
 
 // Frequently Ordered With a "Bag of Organic Bananas"
+// MATCH (productA:Product {id: 13176})<-[:HAS]-(order)-[:HAS]->(productB)
+// RETURN productB, COUNT(*)
+// ORDER BY COUNT(*) DESC
+
 @inline
 def freq_purchased_with_count[name] = product.instacart:name, fpw_count 
              from product, fpw_count 
