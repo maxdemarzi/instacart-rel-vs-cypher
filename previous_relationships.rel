@@ -1,0 +1,6 @@
+// This will create the relationship chains of previous relations
+
+def instacart:previous = order, previous_order 
+from order in instacart:Order, previous_order in instacart:Order 
+           where order.instacart:orderedBy = previous_order.instacart:orderedBy
+           and order.instacart:order_number = previous_order.instacart:order_number + 1

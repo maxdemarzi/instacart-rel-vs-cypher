@@ -1,0 +1,293 @@
+// Run the whole thing in an update query.
+// The two inline definitions and the two modules beneath will all be included already in the graph library, but using it manually here.
+
+/*
+   Relations for setting primary key(s) when importing data from CSV files
+*/
+
+@inline
+def set_primary_key[CSV][keycolumn][column](key, v)=
+    CSV[keycolumn](pos, key) and
+    CSV[column](pos, v)
+    from pos
+
+@inline
+def set_primary_twokey[CSV][keycolumn1,keycolumn2][column](key1, key2, v) =
+    CSV[keycolumn1](pos, key1) and
+    CSV[keycolumn2](pos, key2) and
+    CSV[column](pos, v)
+    from pos
+
+/*
+    This module builds out a graph from a generic set of tables connected by keys.
+    The design assumes that (1) each table represents an entity and (2) each row entry is 
+    keyed by a set of primary keys that define the entity and (3) tables are linked by the
+    primary key of the linked table referenced as a value in another table. (Only single
+    keys may be referenced.)
+    The module also supports transforming values that are not represented as separate
+    tables into entities. The (key..., id) identifiers (entity constructor) should be
+    passed with CONFIG:identifier:{entity_name}.
+    Each table is organized as entity(:column, key..., val) where
+        key... --> the set of keys uniquely identifying an entry in the table.
+        :column --> may represent the name of an attribute of the entity or
+                    the name of/reference to another linked entity
+        val --> the value of :column for the entity instance defined by key...
+    In this module, we assume source nodes are represented as entities which have separate
+    identifiers from their keys in the relational table data, e.g., they are identified by
+    hash values.
+*/
+
+module rt2graph // Relational table to graph
+
+    // 1. Connect attributes. 
+    //    Do not connect attributes that are actually keys to different entities.
+    // 2. Connect entities where the target column references
+    //    a target entity with a different name than the target column.
+    //    The value of the target column is the target entity identifier.
+    // 3. Connect entities where the target entity has
+    //    a different identifier than the data column 
+    // 4. ... and the data column references a target entity 
+    //    with another name.
+    @inline
+    def connect[CONFIG](edge_label, id, val) =
+        CONFIG:data[column](k..., raw_val) and
+        CONFIG:identifier[CONFIG[:source_label]](k..., id) and
+        _config4graph:identifier[CONFIG](target_label, raw_val, val) and
+        _config4graph:node_label[CONFIG](column, target_label) and
+        _config4graph:edge_label[CONFIG](column, edge_label)
+        from k..., target_label, column, raw_val
+
+    // We need last[] here to obtain the entity ids for each entity node, the previous
+    // columns correspond to the parameters of the corresponding entity constructor.
+    @inline
+    def add_node[CONFIG][node_label] = last[ CONFIG[:identifier][node_label] ]
+
+end
+
+/*
+   This module adds edges to a graph based on data imported from (ternary+) edge files,
+   which contain information about the source and target of each such edge, as well as
+   properties (or "labels", using Labeled Property Graph terminology) of the edge.
+   Currently, only edges with zero or one properties are supported.
+*/
+
+module ef2graph // Edge file to graph
+
+    // Binary edge
+    @inline
+    def connect[CONFIG](node1, node2) =
+        CONFIG:data[column1](k..., id1) and
+        CONFIG:data[column2](k..., id2) and
+        CONFIG:node_order(column1, column2) and
+        _config4graph:node_label[CONFIG](column1, node_label_1) and
+        _config4graph:node_label[CONFIG](column2, node_label_2) and
+        _config4graph:identifier[CONFIG](node_label_1, id1, node1) and
+        _config4graph:identifier[CONFIG](node_label_2, id2, node2)
+        from k..., id1, id2, column1, column2, node_label_1, node_label_2
+
+    // Ternary edge
+    @inline
+    def connect[CONFIG](node1, node2, node3) =
+        CONFIG:data[column1](k..., id1) and
+        CONFIG:data[column2](k..., id2) and
+        CONFIG:data[column3](k..., node3) and
+        CONFIG:node_order(column1, column2, column3) and
+        _config4graph:node_label[CONFIG](column1, node_label_1) and
+        _config4graph:node_label[CONFIG](column2, node_label_2) and
+        _config4graph:identifier[CONFIG](node_label_1, id1, node1) and
+        _config4graph:identifier[CONFIG](node_label_2, id2, node2)
+        from k..., id1, id2, id3, column1, column2, column3, node_label_1, node_label_2, node_label_3
+
+end
+
+/*
+      Auxiliary relations, used in declarations in modules rt2graph and ef2graph above.
+      Including these in those modules currently produces the correct result, but also
+      displays spurious RECURSIVE_INLINE warnings (which will go away when https://github.com/RelationalAI/raicode/issues/8344 has been fixed).
+   */
+module _config4graph
+    @inline
+    def edge_label[CONFIG](srccol, role) = CONFIG:edge_label(srccol, role)
+    @inline
+    def edge_label[CONFIG](srccol, role) =
+        not CONFIG:edge_label(srccol,_) and
+        srccol = role
+
+    @inline
+    def node_label[CONFIG](column, target) = CONFIG:node_label(column, target)
+    @inline
+    def node_label[CONFIG](column, target) =
+        not CONFIG:node_label(column, _) and
+        column = target
+
+    @inline
+    def identifier[CONFIG][target](raw_val, val) = CONFIG:identifier[target](raw_val, val)
+    @inline
+    def identifier[CONFIG][target](raw_val, val) =
+        not first[CONFIG:identifier]( target ) and
+        raw_val = val
+end 
+
+// Entity (node) files
+def aisle = set_primary_key[ load_csv[aisle_csv_config] ][:aisle_id]
+def department = set_primary_key[ load_csv[department_csv_config] ][:department_id]
+def product = set_primary_key[ load_csv[product_csv_config] ][:product_id]
+def product_node[label in {:product_id; :product_name; :aisle_id}] = product[label]   
+def order = set_primary_key[ load_csv[order_csv_config] ][:order_id]
+
+def has = load_csv[order_products__train_csv_config]
+def has_more = load_csv[order_products__prior_csv_config]
+
+/*
+   Entities for different node types
+*/
+entity type Aisle = first[aisle[:aisle_id]]
+def config:identifier:Aisle = ^Aisle
+
+entity type Department = first[department[:department_id]]
+def config:identifier:Department = ^Department
+
+entity type Product = first[product_node[:product_id]]
+def config:identifier:Product = ^Product
+
+entity type Order = first[order[:order_id]]
+def config:identifier:Order = ^Order
+
+entity type User = order[:user_id][_]
+def config:identifier:User = ^User
+
+
+// Add to the graph all nodes for entities created above
+def mygraph = rt2graph:add_node[config]
+
+/*
+   These rules use the library rt2graph to connect an entity to its attributes (i.e.,
+   through edges with literals as values) as well as to other entities for which there is a
+   column in the file for the source entity. The appropriate target entity type for each
+   such value column needs to be specified in config:entityname. The name of the created
+   edge needs to be specified in config:rolename, otherwise the name of the value column is
+   used.
+   Note: the key columns for each entity file should NOT be included in config:entityname,
+   for the internal entity identifiers to be connected to their key values from the
+   imported file (otherwise the entity identifiers will be connected to themselves).
+*/
+
+
+def mygraph = rt2graph:connect[(:data, aisle); (:source_label, :Aisle) <++ config]
+def mygraph = rt2graph:connect[(:data, department); (:source_label, :Department) <++ config]
+
+/*
+   These rules use the library ef2graph to connect entities using edges described in
+   (ternary+) edge files.
+   For the rules below to work, config:entityname needs to contain entries for the source/
+   target column names, specifying the corresponding entities.
+*/
+
+
+def mygraph:inDepartment = ef2graph:connect[(:data, product);
+    (:node_order, :aisle_id, :department_id) <++ config]
+
+def mygraph = rt2graph:connect[ (:data, product_node) <++ product_config <++ config ]
+
+def product_config = :node_label, :aisle_id, :Aisle; 
+:edge_label, :aisle_id, :inAisle;
+:source_label, :Product 
+
+def mygraph = rt2graph:connect[ (:data, order) <++ order_config <++ config ]
+
+def order_config = :node_label, :user_id, :User; 
+:edge_label, :user_id, :orderedBy;
+:source_label, :Order 
+
+def mygraph:has = ef2graph:connect[(:data, has);
+    (:node_order, :order_id, :product_id) <++ has_config <++ config]
+
+def mygraph:has = ef2graph:connect[(:data, has_more);
+    (:node_order, :order_id, :product_id) <++ has_config <++ config]
+
+def has_config = :node_label, :product_id, :Product; 
+:node_label, :order_id, :Order; 
+:source_label, :Order 
+
+
+// Delete any pre-existing version of the graph, and insert the newly imported and
+// mapped version of the graph into it.
+def delete:instacart = instacart
+def insert:instacart = mygraph
+
+
+/**** Configuration for schema mapping library ****/
+
+/*
+   Specify the entity name for each column in an imported file that references some other
+   entity.
+*/
+def config:node_label =
+// Columns in orders.csv
+//	order_id,user_id,eval_set,order_number,order_dow,order_hour_of_day,days_since_prior_order
+    (:user_id, :User);    
+// Columns in products.csv
+//	 	product_id,product_name,aisle_id,department_id
+    (:aisle_id, :Aisle);
+    (:department_id, :Department);
+// Columns in order_products__prior.csv and order_products__train.csv
+//	order_id,product_id,add_to_cart_order,reordered		
+    (:product_id, :Product);		    
+    (:order_id, :Order)		    
+/* Define role names when different from column name */
+
+def config:edge_label =
+// Columns in aisles.csv
+    (:aisle, :name);
+// Columns in departments.csv
+    (:department, :name);
+// Columns in orders.csv
+    (:user_id, :orderedBy);
+// Columns in products.csv
+    (:product_name, :name)
+// Columns in order_products__train.csv
+    //(:product_id, :has)
+    
+    
+/* CSV Configuration */
+
+def aisle_csv_config[:path] = "s3://maxdemarzi-rai/instacart/aisles.csv"
+def aisle_csv_config[:schema] =
+    (:aisle_id, "int");
+    (:aisle, "string")	
+
+def department_csv_config[:path] = "s3://maxdemarzi-rai/instacart/departments.csv"
+def department_csv_config[:schema] =
+    (:department_id, "int");
+    (:department, "string")
+  
+def product_csv_config[:path] = "s3://maxdemarzi-rai/instacart/products.csv"
+def product_csv_config[:schema] =
+    (:product_id, "int");
+    (:product_name, "string");
+    (:aisle_id, "int");
+    (:department_id, "int")
+
+def order_csv_config[:path] = "s3://maxdemarzi-rai/instacart/orders.csv"
+def order_csv_config[:schema] =
+    (:order_id, "int");
+    (:user_id, "int");
+    (:eval_set, "string");
+    (:order_number, "int");
+	(:order_dow, "int");
+	(:order_hour_of_day, "int");
+	(:days_since_prior_order, "float")    
+
+def order_products__train_csv_config[:path] = "s3://maxdemarzi-rai/instacart/order_products__train.csv"
+def order_products__train_csv_config[:schema] =
+    (:order_id, "int");
+    (:product_id, "int");
+    (:add_to_cart_order, "int");
+	(:reordered, "int")
+
+def order_products__prior_csv_config[:path] = "s3://maxdemarzi-rai/instacart/order_products__prior.csv"
+def order_products__prior_csv_config[:schema] =
+    (:order_id, "int");
+    (:product_id, "int");
+    (:add_to_cart_order, "int");
+	(:reordered, "int")

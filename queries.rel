@@ -1,0 +1,376 @@
+// Node Types
+def output = label: instacart[label](_), count[n: instacart[label](n)]
+
+
+
+// Relationship Types
+def output = label: instacart[label](_,_), count[n : instacart[label](_,n)]
+
+
+
+// Name Properties of each department
+// MATCH (n:Department) 
+// RETURN n.name
+
+def output = department.instacart:name 
+    from department 
+    in instacart:Department
+	
+	
+	
+// How many Aisles are there? That is one way to look at the Product Breadth
+// MATCH (n:Aisle) 
+// RETURN COUNT(n)
+
+def output = count[n: instacart[:Aisle](n)]	
+
+
+
+// Let’s look at Product Depth by seeing how much variety we have in those aisles by finding the number of products of each Aisle.
+// MATCH (n:Aisle) 
+// RETURN n.name, SIZE((n)--()) AS number_of_products
+// ORDER BY number_of_products DESC 
+
+def output = aisle.instacart:name, count[product : instacart:inAisle(product, aisle)] 
+             from aisle 
+             in instacart:Aisle 
+			 
+			 
+// Ok, let’s now look at just one product. I’m going to pick Organic Bananas since I buy these all the time.  
+// MATCH (productA:Product {name: "Bag of Organic Bananas"})
+// RETURN productA  			 
+
+def output = product, product.instacart:name 
+             from product in instacart:Product 
+             where product.instacart:name = "Bag of Organic Bananas"
+
+
+
+// What Aisle is it in?
+// MATCH (productA:Product {name: "Bag of Organic Bananas"})-[:IN_AISLE]->(aisle)
+// RETURN productA, aisle
+
+def output = product.instacart:name, aisle.instacart:name 
+             from product, aisle 
+			 where instacart:inAisle(product, aisle)
+               and product.instacart:name = "Bag of Organic Bananas"
+			   
+			   
+			   
+// What other products are in that Aisle?
+// MATCH (productA:Product {name: "Bag of Organic Bananas"})-[:IN_AISLE]->(aisle)<-[:IN_AISLE]-(productB)
+// RETURN productA, aisle, productB
+
+def output = product2.instacart:name
+             from product, aisle, product2 
+			 where product.instacart:name = "Bag of Organic Bananas"
+               and instacart:inAisle[product] = instacart:inAisle[product2]             
+			   and product != product2
+			   
+			   
+
+// How many other products are in that Aisle?
+// MATCH (productA:Product {name: "Bag of Organic Bananas"})-[:IN_AISLE]->(aisle:Aisle)
+// RETURN productA, aisle, SIZE((aisle)<-[:IN_AISLE]-()) AS number_of_products
+
+def output = count[product2
+             from product, aisle, product2 
+			 where product.instacart:name = "Bag of Organic Bananas"
+               and instacart:inAisle[product] = instacart:inAisle[product2]             
+               and product != product2]
+			   
+			   
+			   
+// How many orders included a Bag of Organic Bananas
+def output = count[order 
+             from product, order 
+		     where instacart:has(order, product)               
+               and product.instacart:name = "Bag of Organic Bananas"] 
+
+
+
+
+// Which users ordered a "Bag of Organic Bananas" and how many orders in total did they make?			   
+def output = u in user : count[o : instacart:orderedBy(o, u)]    
+            from product, order, user
+		     where instacart:has(order, product)  
+               and instacart:orderedBy(order, user)
+               and product.instacart:name = "Bag of Organic Bananas"
+			   
+			   
+
+// Frequently Ordered With a "Bag of Organic Bananas"
+@inline
+def freq_purchased_with_count[name] = product.instacart:name, fpw_count 
+             from product, fpw_count 
+             where {product2 : count[order from product1, order
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)
+                   and product1.instacart:name = name
+                   and product1 != product2]}(product,fpw_count)
+
+def output = freq_purchased_with_count["Bag of Organic Bananas"]
+
+
+
+// Frequently Ordered With a "Bag of Organic Bananas" and what aisle?
+// MATCH (productA:Product {name: "Bag of Organic Bananas"})<-[:HAS]-(order)-[:HAS]->(productB)-[:IN_AISLE]->(aisle)
+// RETURN productB, aisle, COUNT(*)
+// ORDER BY COUNT(*) DESC
+
+@inline
+def freq_purchased_with_count_and_aisle[name] = 
+             fpw_count,
+             product.instacart:name, 
+             product.instacart:inAisle.instacart:name 
+             from product, fpw_count 
+             where {product2 : count[order from product1, order
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)                   
+                   and product1.instacart:name = name
+                   and product1 != product2]}(product,fpw_count)
+
+def output = freq_purchased_with_count_and_aisle["Bag of Organic Bananas"]
+
+
+
+// Frequently Ordered With a "Bag of Organic Bananas" in the same aisle?
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Bag of Organic Bananas"})<-[:HAS]-(order)-[:HAS]->(productB)-[:IN_AISLE]->(aisle)
+// RETURN productB, COUNT(*)
+// ORDER BY COUNT(*) DESC
+
+@inline
+def freq_purchased_with_count_same_aisle[name] = 
+             fpw_count, 
+             product.instacart:name
+             from product, fpw_count 
+             where {product2 : count[order from product1, order, aisle
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)
+                   and instacart:inAisle(product1, aisle)
+                   and instacart:inAisle(product2, aisle)
+                   and product1.instacart:name = name
+                   and product1 != product2]}(product,fpw_count)
+
+def output = freq_purchased_with_count_same_aisle["Bag of Organic Bananas"]
+
+
+
+// Counts of Frequently Ordered With Products to a "Bag of Organic Bananas"
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Bag of Organic Bananas"})<-[:HAS]-(order)-[:HAS]->(productB)-[:IN_AISLE]->(aisle)
+// RETURN productA, SIZE((productA)-[:HAS]-()) AS productAOrders, productB, SIZE((productB)-[:HAS]-()) AS productBOrders, COUNT(*) AS both
+// ORDER BY both DESC
+
+@inline
+def freq_purchased_with_count_same_aisle_and_totals[name] = 
+             fpw_count, 
+             product.instacart:name,
+             product1_count, 
+             product2_count
+             from product, fpw_count , product1_count, product2_count
+             where {product2 : count[order from product1, order, aisle
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)
+                   and instacart:inAisle(product1, aisle)
+                   and instacart:inAisle(product2, aisle)
+                   and product1.instacart:name = name
+                   and product1 != product2
+                   and product1_count = count[o : instacart:has(o, product1)]
+                   and product2_count = count[o : instacart:has(o, product2)]]}(product,fpw_count)
+
+def output = freq_purchased_with_count_same_aisle_and_totals["Bag of Organic Bananas"]
+
+
+
+
+// Score of Frequently Ordered With Products to a "Bag of Organic Bananas"
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Bag of Organic Bananas"})<-[:HAS]-(order)-[:HAS]->(productB)-[:IN_AISLE]->(aisle)
+// WITH productA, SIZE((productA)-[:HAS]-()) AS productAOrders, productB, SIZE((productB)-[:HAS]-()) AS productBOrders, COUNT(*) AS both
+// RETURN productA.name, productB.name, both/(1.0 * (productAOrders + productBOrders - both)) AS score
+// ORDER BY score DESC			 
+
+@inline
+def freq_purchased_with_count_same_aisle_and_scores[name] = 
+             fpw_count, 
+             product.instacart:name,
+             fpw_count/(1.0 * (product1_count + product2_count - fpw_count))
+             from product, fpw_count , product1_count, product2_count
+             where {product2 : count[order from product1, order, aisle
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)
+                   and instacart:inAisle(product1, aisle)
+                   and instacart:inAisle(product2, aisle)
+                   and product1.instacart:name = name
+                   and product1 != product2
+                   and product1_count = count[o : instacart:has(o, product1)]
+                   and product2_count = count[o : instacart:has(o, product2)]]}(product,fpw_count)
+
+def output = freq_purchased_with_count_same_aisle_and_scores["Bag of Organic Bananas"]
+
+
+
+
+// So people who tend to buy Organic Bananas tend to also buy other Organic Produce from the same Aisle, makes sense. 
+// What about products that you tend to buy only one thing from an aisle?			   			   			   			   			 
+
+
+// Like Pasta Sauce?
+// MATCH (n:Aisle {name:"pasta sauce"})<-[:IN_AISLE]-(productA)
+// RETURN n, productA
+
+def output = product.instacart:name 
+	from product, aisle
+	where instacart:inAisle(product, aisle)
+	  and aisle.instacart:name = "pasta sauce"
+	  
+	  
+	  
+	  
+// Let's focus on one item in the pasta sauce
+// MATCH (productA:Product {name:"Tomato Basil Pasta Sauce"})
+// RETURN  productA
+
+def output = product, product.instacart:name 
+	from product
+	where product.instacart:name = "Tomato Basil Pasta Sauce"
+	
+	
+	
+// How many times have people purchased this Product?
+// MATCH (productA:Product {name:"Tomato Basil Pasta Sauce"})
+// RETURN  productA, SIZE((productA)<-[:HAS]-()) AS ordered
+
+def output = product, product.instacart:name, count[o : instacart:has(o, product)]
+	from product
+	where product.instacart:name = "Tomato Basil Pasta Sauce"
+
+
+
+
+
+//Let’s look at the results and comparing it with the Organic Bananas. Users tend to purchase one type of pasta sauce at a time.
+// same query
+@inline
+def freq_purchased_with_count_same_aisle_and_scores[name] = 
+             fpw_count, 
+             product.instacart:name,
+             fpw_count/(1.0 * (product1_count + product2_count - fpw_count))
+             from product, fpw_count , product1_count, product2_count
+             where {product2 : count[order from product1, order, aisle
+                 where instacart:has(order, product1)
+                   and instacart:has(order, product2)
+                   and instacart:inAisle(product1, aisle)
+                   and instacart:inAisle(product2, aisle)
+                   and product1.instacart:name = name
+                   and product1 != product2
+                   and product1_count = count[o : instacart:has(o, product1)]
+                   and product2_count = count[o : instacart:has(o, product2)]]}(product,fpw_count)
+				   
+def output = freq_purchased_with_count_same_aisle_and_scores["Tomato Basil Pasta Sauce"]		
+
+
+
+// What Products did people who bought "Tomato Basil Pasta Sauce" purchase in their next order from the same aisle?
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Tomato Basil Pasta Sauce"})<-[:HAS]-(order)<-[:PREV]-(nextOrder)-[:HAS]->(productB)-[:IN_AISLE]->(aisle)
+// RETURN productB, COUNT(*) 
+// ORDER BY COUNT(*) DESC
+
+@inline 
+def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
+
+@inline
+def next_order_same_aisle[name] = next_count, product2.instacart:name
+	from product2, next_count
+    where next_count = count[instacart:has(order, product1)
+          and name = product1.instacart:name 
+          and instacart:has(order2, product2)
+    	  and instacart:previous(order2, order)
+          and name != product2.instacart:name
+          and product_aisle[name] = product2.instacart:inAisle    
+          for order, order2, product1]
+
+def output = next_order_same_aisle["Tomato Basil Pasta Sauce"]            
+
+
+
+// All previous orders, counting PATHS (incorrect)	
+// This query counts the total number of paths for products that had prior orders which overcounts the actual number of orders
+// But it is an example of path counting.	  		  
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Tomato Basil Pasta Sauce"})<-[:HAS]-(order)<-[:PREV*]-(nextOrder)-[:HAS]->(productB)
+// WHERE (productB)-[:IN_AISLE]->(aisle)
+// RETURN productB, COUNT(*) 
+// ORDER BY COUNT(*) DESC		  
+		  
+@inline 
+def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
+
+def all_previous = instacart:previous; all_previous.instacart:previous
+
+@inline
+def all_orders_same_aisle[name] = next_count, product2.instacart:name
+	from product2, next_count
+    where next_count = count[instacart:has(order, product1)
+          and name = product1.instacart:name 
+          and instacart:has(order2, product2)    	  
+          and all_previous(order2, order)
+          and product_aisle[name] = product2.instacart:inAisle    
+          for order, order2, product1]         
+          
+def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]
+
+
+
+
+// All previous orders, counting DISTINCT orders
+
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Tomato Basil Pasta Sauce"})<-[:HAS]-(order)<-[:PREV*]-(nextOrder)-[:HAS]->(productB)
+// WHERE (productB)-[:IN_AISLE]->(aisle)
+// WITH productA, productB, COUNT(DISTINCT order) AS orders
+// RETURN productA.name, productB.name, orders
+// ORDER BY orders DESC
+
+//def all_previous = instacart:previous; all_previous.instacart:previous
+
+@inline 
+def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
+
+@inline
+def all_orders_same_aisle[name] = product2.instacart:name, next_count 
+    from product2, next_count
+    where next_count = count[order2 
+        from order, order2, product1 
+        where instacart:has(order, product1)
+          and name = product1.instacart:name 
+          and instacart:has(order2, product2)    	  
+          and all_previous(order2, order)
+          and product_aisle[name] = product2.instacart:inAisle]        
+          
+def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]
+
+
+
+// Score of Frequently Ordered NEXT Products to a "Tomato Basil Pasta Sauce"
+// MATCH (aisle)<-[:IN_AISLE]-(productA:Product {name: "Tomato Basil Pasta Sauce"})<-[:HAS]-(order)<-[:PREV*]-(nextOrder)-[:HAS]->(productB)
+// WHERE (productB)-[:IN_AISLE]->(aisle)
+// WITH productA, SIZE((productA)-[:HAS]-()) AS productAOrders, productB, SIZE((productB)-[:HAS]-()) AS productBOrders, COUNT(DISTINCT order) AS orders
+// RETURN productA.name, productB.name, orders/(1.0 * (productAOrders + productBOrders - orders)) AS score
+// ORDER BY score DESC
+
+@inline 
+def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
+
+@inline
+def all_orders_same_aisle[name] = product2.instacart:name, 
+    next_count/(1.0 * (product1_count + product2_count - next_count)) 
+    from product1, product2, next_count, product1_count, product2_count
+    where next_count = count[order2 
+        from order, order2 
+        where instacart:has(order, product1)
+          and name = product1.instacart:name 
+          and instacart:has(order2, product2)    	  
+          and all_previous(order2, order)
+          and product_aisle[name] = product2.instacart:inAisle
+          and product1_count = product_count[product1]
+          and product2_count = product_count[product2]]         
+          
+def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]

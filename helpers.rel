@@ -1,0 +1,6 @@
+// Count of orders for a product
+def product_count[p] = count[o: instacart:has(o, p)]
+
+// Recursive path query to retrieve all previous queries in the chain
+def all_previous = instacart:previous; all_previous.instacart:previous
+
