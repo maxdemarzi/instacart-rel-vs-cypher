@@ -410,4 +410,4 @@ def all_orders_same_aisle_and_scores_fast2[name] = product2.instacart:name,
           and product1_count = product_count[product1]
           and product2_count = product_count[product2]]         
           
-def output = all_orders_same_aisle_and_scores_slow["Tomato Basil Pasta Sauce"]
+def output = all_orders_same_aisle_and_scores_fast2["Tomato Basil Pasta Sauce"]
