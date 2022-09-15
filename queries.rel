@@ -364,7 +364,7 @@ def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]
 def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
 
 @inline
-def all_orders_same_aisle[name] = product2.instacart:name, 
+def all_orders_same_aisle_and_scores[name] = product2.instacart:name,
     next_count/(1.0 * (product1_count + product2_count - next_count)) 
     from product1, product2, next_count, product1_count, product2_count
     where next_count = count[order2 
@@ -377,4 +377,4 @@ def all_orders_same_aisle[name] = product2.instacart:name,
           and product1_count = product_count[product1]
           and product2_count = product_count[product2]]         
           
-def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]
+def output = all_orders_same_aisle_and_scores["Tomato Basil Pasta Sauce"]
