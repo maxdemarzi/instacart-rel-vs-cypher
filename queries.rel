@@ -311,16 +311,39 @@ def product_aisle[name] = product.instacart:inAisle from product where name = pr
 def all_previous = instacart:previous; all_previous.instacart:previous
 
 @inline
-def all_orders_same_aisle[name] = next_count, product2.instacart:name
-	from product2, next_count
-    where next_count = count[instacart:has(order, product1)
+def all_orders_same_aisle_fast[name] = next_count, product2.instacart:name
+    from product2, next_count, product1_count
+    where product_aisle[name] = product2.instacart:inAisle
+    and next_count = count[(order, order2) 
+        from order, order2, product1
+        where instacart:has(order, product1)
+          and name = product1.instacart:name 
+          and instacart:has(order2, product2)    	  
+          and all_previous(order2, order) ]
+		  
+def output = all_orders_same_aisle_fast["Tomato Basil Pasta Sauce"]        
+          
+
+// versus
+
+@inline 
+def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
+
+def all_previous = instacart:previous; all_previous.instacart:previous
+
+
+@inline
+def all_orders_same_aisle_slow[name] = next_count, product2.instacart:name
+    from product2, next_count, product1_count
+    where next_count = count[(order, order2) 
+        from order, order2, product1
+        where instacart:has(order, product1)
           and name = product1.instacart:name 
           and instacart:has(order2, product2)    	  
           and all_previous(order2, order)
-          and product_aisle[name] = product2.instacart:inAisle    
-          for order, order2, product1]         
-          
-def output = all_orders_same_aisle["Tomato Basil Pasta Sauce"]
+          and product_aisle[name] = product2.instacart:inAisle ] // Here the Aisle check is inside the count, in the other query it is above the count
+		  
+def output = all_orders_same_aisle_slow["Tomato Basil Pasta Sauce"]
 
 
 
