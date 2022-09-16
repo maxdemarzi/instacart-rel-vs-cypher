@@ -308,7 +308,7 @@ def output = next_order_same_aisle["Tomato Basil Pasta Sauce"]
 @inline 
 def product_aisle[name] = product.instacart:inAisle from product where name = product.instacart:name 
 
-def all_previous = instacart:previous; all_previous.instacart:previous
+// def all_previous = instacart:previous; all_previous.instacart:previous  // NOTE: This definition needs to be installed to be fast.
 
 @inline
 def all_orders_same_aisle_fast[name] = next_count, product2.instacart:name
